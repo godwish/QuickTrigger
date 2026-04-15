@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  quick-trigger:
+    build: .
+    container_name: quick-trigger
+    restart: always
+    ports:
+      - "4000:4000"
+    environment:
+      - DATABASE_URL=file:./.runtime/quick-trigger.sqlite
+      - HOST=0.0.0.0
+      - PORT=4000
+      - APP_ORIGIN=http://localhost:4000
+      - JWT_SECRET=your-very-secure-random-secret-here
+      - INITIAL_ADMIN_USERNAME=admin
+      - INITIAL_ADMIN_PASSWORD=admin-password-123
+      - SEED_SAMPLE_DATA=true
+    volumes:
+      - ./.runtime:/app/.runtime
+    # .env 파일이 있다면 아래 주석을 해제하여 사용할 수도 있습니다.
+    # env_file:
+    #   - .env
