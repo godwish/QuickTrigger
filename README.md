@@ -61,16 +61,46 @@ npm start
 
 ## 🐳 Docker로 실행하기
 
-Docker를 사용하면 더욱 간편하게 프로젝트를 실행할 수 있습니다.
+Docker를 사용하면 별도의 환경 설정 없이 가장 빠르게 QuickTrigger를 시작할 수 있습니다. 이미 빌드되어 배포된 이미지를 사용하거나, 직접 이미지를 빌드하여 실행할 수 있습니다.
 
-### 1. Docker Compose로 실행
-```bash
-# 이미지 빌드 및 컨테이너 실행
-docker-compose up --build -d
+### 방법 1: Docker Hub에서 내려받아 실행하기 (권장)
+이미 빌드된 최신 이미지를 사용하여 즉시 실행합니다.  
+👉 **[Docker Hub 저장소 바로가기](https://hub.docker.com/r/koseungmin/quick-trigger)**
+
+1. `docker-compose.yml` 파일을 작성합니다:
+```yaml
+services:
+  quick-trigger:
+    image: koseungmin/quick-trigger:latest
+    container_name: quick-trigger
+    restart: always
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./.runtime:/app/.runtime
 ```
 
-### 2. 데이터 보관
-모든 데이터(설정, 보안 키, 데이터베이스)는 호스트의 `./.runtime` 디렉토리에 저장되어 컨테이너를 재시작해도 안전하게 유지됩니다.
+2. 서비스를 실행합니다:
+```bash
+docker-compose up -d
+```
+
+### 방법 2: 직접 빌드하여 실행하기
+소스 코드를 수정하거나 직접 이미지를 생성하고 싶을 때 사용합니다.
+
+1. 이미지를 빌드합니다:
+```bash
+docker build -t quick-trigger:latest .
+```
+
+2. 서비스를 실행합니다:
+```bash
+docker-compose up -d
+```
+*(참고: docker-compose.yml의 image 항목이 `quick-trigger:latest`로 되어 있어야 합니다.)*
+
+### 📦 데이터 보관 및 관리
+모든 데이터(설정, 보안 키, 데이터베이스)는 호스트의 `./.runtime` 디렉토리에 저장됩니다. 볼륨 마운트 설정을 통해 컨테이너를 재시작하거나 이미지를 업데이트해도 데이터가 안전하게 유지됩니다.
 
 ---
 
