@@ -1,3 +1,10 @@
+<img width="1368" height="1067" alt="Image" src="https://github.com/user-attachments/assets/21319d4c-3e6f-4513-bfe1-52f08844a583" />
+
+<img width="1366" height="1307" alt="Image" src="https://github.com/user-attachments/assets/e980baac-8ced-453b-934e-b0ce5f291adb" />
+
+<img width="1586" height="817" alt="Image" src="https://github.com/user-attachments/assets/246e6e3e-b2b0-4675-bd70-e92d8d91275b" />
+
+
 # 🚀 QuickTrigger
 
 ### 복잡한 설정 없이 즉시 사용하는 클릭 기반 스마트 링크 대시보드
