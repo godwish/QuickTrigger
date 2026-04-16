@@ -4,6 +4,162 @@
 
 <img width="1586" height="817" alt="Image" src="https://github.com/user-attachments/assets/246e6e3e-b2b0-4675-bd70-e92d8d91275b" />
 
+---
+
+# 🚀 QuickTrigger
+
+### A Click-Based Smart Link Dashboard You Can Use Instantly — No Complex Setup Required
+
+QuickTrigger is a **simple yet powerful dashboard solution** designed to help individuals and teams efficiently manage and share large numbers of web links. With flexible drag-and-drop editing and a refined permission system, it provides an optimized workflow—allowing you to launch a fully functional dashboard immediately after installation.
+
+---
+
+## ✨ Key Features
+
+* **Zero-Touch Installer**: Complete installation in just a few clicks via the web—no need for environment variables (`.env`) or database knowledge.
+* **Real-Time Drag & Drop**: Freely arrange links and categories with instant saving.
+* **Advanced Permission System**: Supports role-based access control with `Admin`, `Manager`, and `User`.
+* **Smart Edit Mode**: Clearly distinguish between read-only and edit states through mode switching.
+* **Powerful Undo/Redo**: Safely edit with up to 30 levels of history support.
+* **Auto-Generated Sample Data**: Useful example links are automatically created upon installation.
+* **Security-First Design**: Uses HttpOnly cookie-based JWT authentication with automatically generated security keys.
+
+---
+
+## 🛠 Tech Stack
+
+### Frontend
+
+* **Framework**: React (Vite)
+* **State Management**: Zustand
+* **UI & Layout**: Tailwind CSS, Lucide React
+* **Interaction**: @dnd-kit/core
+
+### Backend
+
+* **Runtime**: Node.js (Express)
+* **Language**: TypeScript
+* **Database**: SQLite (via Prisma) — file-based DB with no separate server required
+* **Authentication**: JWT, bcryptjs
+
+---
+
+## 📦 Installation & Getting Started
+
+QuickTrigger requires no complicated pre-configuration.
+
+### 1. Prerequisites
+
+* **Node.js**: v18.18.0 or higher
+
+### 2. Installation
+
+```bash
+git clone https://github.com/godwish/QuickTrigger.git
+cd QuickTrigger
+npm install
+```
+
+### 3. Run & Initial Setup
+
+```bash
+# Build and run the entire project
+npm run build
+npm start
+```
+
+Once the server is running, open `http://localhost:4000` in your browser.
+The **one-touch web installer** will launch automatically—just enter your site name and admin details, and your dashboard will be ready instantly.
+
+---
+
+## 🐳 Run with Docker
+
+Using Docker is the fastest way to get started without additional setup. You can either use a pre-built image or build one yourself.
+
+### Method 1: Run from Docker Hub (Recommended)
+
+Use the latest pre-built image for instant deployment.
+👉 **[Go to Docker Hub Repository](https://hub.docker.com/r/koseungmin/quick-trigger)**
+
+1. Create a `docker-compose.yml` file:
+
+```yaml
+services:
+  quick-trigger:
+    image: koseungmin/quick-trigger:latest
+    container_name: quick-trigger
+    restart: always
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./.runtime:/app/.runtime
+```
+
+2. Start the service:
+
+```bash
+docker-compose up -d
+```
+
+### Method 2: Build and Run Manually
+
+Use this if you want to modify the source code or build your own image.
+
+1. Build the image:
+
+```bash
+docker build -t quick-trigger:latest .
+```
+
+2. Run the service:
+
+```bash
+docker-compose up -d
+```
+
+*(Note: The `image` field in docker-compose.yml should be set to `quick-trigger:latest`.)*
+
+### 📦 Data Storage & Management
+
+All data (settings, security keys, database) is stored in the host's `./.runtime` directory.
+With volume mounting, your data remains safe even if the container restarts or the image is updated.
+
+---
+
+## 🚀 Build & Production
+
+For running in a production environment:
+
+```bash
+# Build the project
+npm run build
+
+# Start the server
+npm start
+```
+
+---
+
+## 📂 Project Structure
+
+```text
+.
+├── apps
+│   ├── server        # Express API server (TypeScript)
+│   └── web           # Vite + React frontend
+├── prisma            # Prisma schema
+├── .runtime          # SQLite DB & session key storage (do not delete)
+└── dist              # Build output (Production)
+```
+
+---
+
+## 📄 License
+
+This project is distributed under the MIT License.
+
+---
 
 # 🚀 QuickTrigger
 
