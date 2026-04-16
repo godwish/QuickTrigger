@@ -20,49 +20,6 @@ import {
   prisma
 } from "./database.js";
 
-const installDatabaseSchema = z.object({
-  provider: z.enum(["sqlite", "mysql"]),
-  address: z.string().optional(),
-  database: z.string().optional(),
-  username: z.string().optional(),
-  password: z.string().optional()
-}).superRefine((value, context) => {
-  if (value.provider !== "mysql") {
-    return;
-  }
-
-  if (!value.address?.trim()) {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["address"],
-      message: "MariaDB 주소를 입력해 주세요."
-    });
-  }
-
-  const database = value.database?.trim() ?? "";
-  if (!database) {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["database"],
-      message: "데이터베이스 이름을 입력해 주세요."
-    });
-  } else if (!/^[A-Za-z0-9$_-]+$/.test(database)) {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["database"],
-      message: "데이터베이스 이름은 영문, 숫자, _, -, $ 만 사용할 수 있습니다."
-    });
-  }
-
-  if (!value.username?.trim()) {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["username"],
-      message: "DB 아이디를 입력해 주세요."
-    });
-  }
-});
-
 const bootstrapSchema = z
   .object({
     username: z
@@ -102,32 +59,7 @@ installRouter.get(
   })
 );
 
-installRouter.post(
-  "/database",
-  asyncHandler(async (request, response) => {
-    const status = await getInstallStatus();
-
-    if (status.setupComplete) {
-      throw new AppError("이미 설치가 완료되었습니다. 관리자 화면에서 운영해 주세요.", 400);
-    }
-
-    const payload = parseBody(installDatabaseSchema, request.body);
-    if (payload.provider === "sqlite") {
-      response.json(await configureInstallDatabase({ provider: "sqlite" }));
-      return;
-    }
-
-    response.json(
-      await configureInstallDatabase({
-        provider: "mysql",
-        address: payload.address?.trim() ?? "",
-        database: payload.database?.trim() ?? "",
-        username: payload.username?.trim() ?? "",
-        password: payload.password ?? ""
-      })
-    );
-  })
-);
+// Database setup is now automatic during bootstrap or status check
 
 installRouter.post(
   "/bootstrap",
@@ -139,10 +71,11 @@ installRouter.post(
     }
 
     const payload = parseBody(bootstrapSchema, request.body);
-    const installConfig = getInstallConfig();
+    let installConfig = getInstallConfig();
 
     if (!installConfig) {
-      throw new AppError("먼저 MariaDB 연결 설정을 완료해 주세요.", 400);
+      await configureInstallDatabase();
+      installConfig = getInstallConfig();
     }
 
     const existingAdminCount = await prisma.user.count({
@@ -180,6 +113,36 @@ installRouter.post(
           }
         });
       }
+
+      // Add sample data for a better initial experience
+      const isKorean = payload.language === "ko";
+      const cat1 = await tx.category.create({
+        data: {
+          title: isKorean ? "필수 도구" : "Core Tools",
+          color: "#d97706",
+          gridX: 0,
+          gridY: 0,
+          sortOrder: 0
+        }
+      });
+      const cat2 = await tx.category.create({
+        data: {
+          title: isKorean ? "모니터링" : "Monitoring",
+          color: "#0f766e",
+          gridX: 1,
+          gridY: 0,
+          sortOrder: 1
+        }
+      });
+
+      await tx.item.createMany({
+        data: [
+          { categoryId: cat1.id, displayName: "GitHub", url: "https://github.com", sortOrder: 0 },
+          { categoryId: cat1.id, displayName: "Notion", url: "https://www.notion.so", sortOrder: 1 },
+          { categoryId: cat2.id, displayName: "Grafana", url: "https://grafana.com", sortOrder: 0 },
+          { categoryId: cat2.id, displayName: "Sentry", url: "https://sentry.io", sortOrder: 1 }
+        ]
+      });
 
       return tx.user.create({
         data: {

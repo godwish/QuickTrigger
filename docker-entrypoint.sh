@@ -3,12 +3,10 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
-echo "🚀 Starting QuickTrigger preparation..."
-
-# Run database migration/push
-echo "📦 Syncing database schema..."
-npx prisma db push --accept-data-loss
+echo "🚀 Starting QuickTrigger..."
 
 # Start the application
-echo "🏃 Starting application..."
+# Note: The application automatically handles database initialization
+# and schema syncing during the bootstrap phase.
+echo "🏃 Running entrypoint script as $(whoami)"
 exec npm start

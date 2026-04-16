@@ -9,6 +9,8 @@ import type { NextFunction, Request, Response } from "express";
 
 import { AppError, env } from "./config.js";
 
+import crypto from "node:crypto";
+
 const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);
 const INSTALL_DIR = path.resolve(process.cwd(), ".runtime");
@@ -16,54 +18,37 @@ const INSTALL_CONFIG_PATH = path.join(INSTALL_DIR, "install-config.json");
 const SQLITE_DB_RELATIVE_PATH = ".runtime/quick-trigger.sqlite";
 const SQLITE_PRISMA_URL = "file:../.runtime/quick-trigger.sqlite";
 const SQLITE_SCHEMA_PATH = path.resolve(process.cwd(), "prisma/schema.sqlite.prisma");
-const MYSQL_SCHEMA_PATH = path.resolve(process.cwd(), "prisma/schema.mysql.prisma");
 const NODE_BINARY_PATH = path.resolve(process.cwd(), "node_modules/node/bin/node");
 const PRISMA_CLI_PATH = path.resolve(process.cwd(), "node_modules/prisma/build/index.js");
 
-type DatabaseProvider = "sqlite" | "mysql";
+type DatabaseProvider = "sqlite";
 type RuntimePrismaClient = import("@prisma/client").PrismaClient;
 
 type RuntimeInstallConfig = {
-  version: 2;
+  version: 3;
   provider: DatabaseProvider;
-  sqlite?: {
+  sqlite: {
     filePath: string;
   };
-  database?: {
-    host: string;
-    port: number;
-    name: string;
-    username: string;
-    password: string;
+  secrets: {
+    jwtSecret: string;
+    cookieSecret: string;
   };
   schemaReadyAt: string;
   setupCompleteAt?: string;
 };
 
 export type InstallStatus = {
-  databaseConfigured: boolean;
   setupComplete: boolean;
-  step: "database" | "admin" | "complete";
-  provider?: DatabaseProvider;
+  step: "admin" | "complete";
   database?: {
-    address?: string;
-    database?: string;
-    username?: string;
     filePath?: string;
   };
 };
 
-export type InstallDatabaseInput =
-  | {
-      provider: "sqlite";
-    }
-  | {
-      provider: "mysql";
-      address: string;
-      database: string;
-      username: string;
-      password: string;
-    };
+export type InstallDatabaseInput = {
+  provider: "sqlite";
+};
 
 let cachedInstallConfig = readInstallConfigSync();
 let cachedPrismaClient: RuntimePrismaClient | null = null;
@@ -109,59 +94,12 @@ function createPrismaClient(databaseUrl: string) {
   });
 }
 
-function escapeDatabaseIdentifier(value: string) {
-  return `\`${value.replace(/`/g, "``")}\``;
-}
-
-function formatAddress(host: string, port: number) {
-  return port === 3306 ? host : `${host}:${port}`;
-}
-
-function getSchemaPath(provider: DatabaseProvider) {
-  return provider === "sqlite" ? SQLITE_SCHEMA_PATH : MYSQL_SCHEMA_PATH;
+function getSchemaPath() {
+  return SQLITE_SCHEMA_PATH;
 }
 
 function buildSqliteUrl() {
   return SQLITE_PRISMA_URL;
-}
-
-export function parseMariaDbAddress(input: string) {
-  const value = input.trim();
-
-  if (!value) {
-    throw new AppError("MariaDB 주소를 입력해 주세요.", 400);
-  }
-
-  try {
-    const parsed = new URL(value.includes("://") ? value : `mysql://${value}`);
-
-    if (!parsed.hostname) {
-      throw new AppError("MariaDB 주소 형식이 올바르지 않습니다.", 400);
-    }
-
-    return {
-      host: parsed.hostname,
-      port: parsed.port ? Number(parsed.port) : 3306
-    };
-  } catch {
-    throw new AppError("MariaDB 주소 형식이 올바르지 않습니다.", 400);
-  }
-}
-
-function buildMariaDbUrl(config: NonNullable<RuntimeInstallConfig["database"]>) {
-  const username = encodeURIComponent(config.username);
-  const password = encodeURIComponent(config.password);
-  const host = config.host.includes(":") ? `[${config.host}]` : config.host;
-  const database = encodeURIComponent(config.name);
-
-  return `mysql://${username}:${password}@${host}:${config.port}/${database}`;
-}
-
-function buildAdminDatabaseUrl(config: NonNullable<RuntimeInstallConfig["database"]>) {
-  return buildMariaDbUrl({
-    ...config,
-    name: "mysql"
-  });
 }
 
 async function writeInstallConfig(config: RuntimeInstallConfig) {
@@ -173,16 +111,8 @@ async function writeInstallConfig(config: RuntimeInstallConfig) {
   cachedInstallConfig = config;
 }
 
-function getDatabaseUrl(config: RuntimeInstallConfig) {
-  if (config.provider === "sqlite") {
-    return buildSqliteUrl();
-  }
-
-  if (!config.database) {
-    throw new AppError("MariaDB 연결 설정이 누락되었습니다.", 400);
-  }
-
-  return buildMariaDbUrl(config.database);
+function getDatabaseUrl() {
+  return buildSqliteUrl();
 }
 
 async function inspectDatabaseState(databaseUrl: string) {
@@ -209,33 +139,17 @@ async function inspectDatabaseState(databaseUrl: string) {
   }
 }
 
-async function ensureDatabaseExists(config: NonNullable<RuntimeInstallConfig["database"]>) {
-  const adminClient = createPrismaClient(buildAdminDatabaseUrl(config));
-
-  try {
-    await adminClient.$connect();
-    await adminClient.$executeRawUnsafe(
-      `CREATE DATABASE IF NOT EXISTS ${escapeDatabaseIdentifier(config.name)} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
-    );
-  } catch {
-    // Some MariaDB users may not have access to the mysql schema.
-    // In that case db push below will still succeed when the target DB already exists.
-  } finally {
-    await adminClient.$disconnect().catch(() => undefined);
-  }
-}
-
-async function generatePrismaClient(provider: DatabaseProvider) {
+async function generatePrismaClient() {
   try {
     await execFileAsync(
       NODE_BINARY_PATH,
-      [PRISMA_CLI_PATH, "generate", "--schema", getSchemaPath(provider)],
+      [PRISMA_CLI_PATH, "generate", "--schema", getSchemaPath()],
       {
         cwd: process.cwd(),
         env: {
           ...process.env,
           PRISMA_HIDE_UPDATE_MESSAGE: "1",
-          DATABASE_URL: provider === "sqlite" ? buildSqliteUrl() : "mysql://root:password@127.0.0.1:3306/quick_trigger"
+          DATABASE_URL: buildSqliteUrl()
         }
       }
     );
@@ -259,11 +173,11 @@ async function ensureSqliteDatabaseFile(relativePath: string) {
   }
 }
 
-async function pushSchemaToDatabase(provider: DatabaseProvider, databaseUrl: string) {
+async function pushSchemaToDatabase(databaseUrl: string) {
   try {
     await execFileAsync(
       NODE_BINARY_PATH,
-      [PRISMA_CLI_PATH, "db", "push", "--schema", getSchemaPath(provider), "--skip-generate"],
+      [PRISMA_CLI_PATH, "db", "push", "--schema", getSchemaPath(), "--skip-generate"],
       {
         cwd: process.cwd(),
         env: {
@@ -306,13 +220,7 @@ export async function resetPrismaClient() {
 }
 
 function getPrismaUrlOrThrow() {
-  const config = getInstallConfig();
-
-  if (!config) {
-    throw new AppError("설치가 필요합니다.", 503);
-  }
-
-  return getDatabaseUrl(config);
+  return getDatabaseUrl();
 }
 
 function getPrismaClient() {
@@ -340,16 +248,15 @@ export async function getInstallStatus(): Promise<InstallStatus> {
 
   if (!config) {
     return {
-      databaseConfigured: false,
       setupComplete: false,
-      step: "database"
+      step: "admin"
     };
   }
 
   let setupComplete = Boolean(config.setupCompleteAt);
 
   if (!setupComplete) {
-    const inspection = await inspectDatabaseState(getDatabaseUrl(config));
+    const inspection = await inspectDatabaseState(getDatabaseUrl());
     setupComplete = inspection.setupComplete;
 
     if (setupComplete) {
@@ -361,60 +268,38 @@ export async function getInstallStatus(): Promise<InstallStatus> {
   }
 
   return {
-    databaseConfigured: true,
     setupComplete,
     step: setupComplete ? "complete" : "admin",
-    provider: config.provider,
-    database:
-      config.provider === "sqlite"
-        ? {
-            filePath: config.sqlite?.filePath ?? SQLITE_DB_RELATIVE_PATH
-          }
-        : {
-            address: config.database ? formatAddress(config.database.host, config.database.port) : undefined,
-            database: config.database?.name,
-            username: config.database?.username
-          }
+    database: {
+      filePath: config.sqlite.filePath
+    }
   };
 }
 
-export async function configureInstallDatabase(input: InstallDatabaseInput) {
-  const parsedMysqlAddress = input.provider === "mysql" ? parseMariaDbAddress(input.address) : null;
-  const nextConfig: RuntimeInstallConfig =
-    input.provider === "sqlite"
-      ? {
-          version: 2,
-          provider: "sqlite",
-          sqlite: {
-            filePath: SQLITE_DB_RELATIVE_PATH
-          },
-          schemaReadyAt: new Date().toISOString()
-        }
-      : {
-          version: 2,
-          provider: "mysql",
-          database: {
-            host: parsedMysqlAddress!.host,
-            port: parsedMysqlAddress!.port,
-            name: input.database.trim(),
-            username: input.username.trim(),
-            password: input.password
-          },
-          schemaReadyAt: new Date().toISOString()
-        };
+export function generateSecretKeys() {
+  return {
+    jwtSecret: crypto.randomBytes(32).toString("hex"),
+    cookieSecret: crypto.randomBytes(32).toString("hex")
+  };
+}
+
+export async function configureInstallDatabase() {
+  const nextConfig: RuntimeInstallConfig = {
+    version: 3,
+    provider: "sqlite",
+    sqlite: {
+      filePath: SQLITE_DB_RELATIVE_PATH
+    },
+    secrets: generateSecretKeys(),
+    schemaReadyAt: new Date().toISOString()
+  };
 
   await mkdir(INSTALL_DIR, { recursive: true });
-  if (nextConfig.provider === "sqlite") {
-    await ensureSqliteDatabaseFile(nextConfig.sqlite?.filePath ?? SQLITE_DB_RELATIVE_PATH);
-  }
-  await generatePrismaClient(nextConfig.provider);
+  await ensureSqliteDatabaseFile(nextConfig.sqlite.filePath);
+  await generatePrismaClient();
 
-  if (nextConfig.provider === "mysql" && nextConfig.database) {
-    await ensureDatabaseExists(nextConfig.database);
-  }
-
-  const databaseUrl = getDatabaseUrl(nextConfig);
-  await pushSchemaToDatabase(nextConfig.provider, databaseUrl);
+  const databaseUrl = getDatabaseUrl();
+  await pushSchemaToDatabase(databaseUrl);
 
   const inspection = await inspectDatabaseState(databaseUrl);
 
@@ -426,7 +311,6 @@ export async function configureInstallDatabase(input: InstallDatabaseInput) {
 
   return getInstallStatus();
 }
-
 export async function markInstallationComplete() {
   const config = getInstallConfig();
 

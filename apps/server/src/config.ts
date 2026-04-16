@@ -45,11 +45,37 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(4000),
   APP_ORIGIN: z.string().url().default("http://localhost:5173"),
   COOKIE_NAME: z.string().min(1).default("dashboard_session"),
-  JWT_SECRET: z.string().min(16, "JWT_SECRET must be at least 16 characters."),
+  JWT_SECRET: z.string().min(16).optional(),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development")
 });
 
 export const env = envSchema.parse(process.env);
+
+const INSTALL_CONFIG_PATH = path.resolve(process.cwd(), ".runtime", "install-config.json");
+
+function getRuntimeSecret(key: "jwtSecret" | "cookieSecret"): string | undefined {
+  if (!fs.existsSync(INSTALL_CONFIG_PATH)) {
+    return undefined;
+  }
+
+  try {
+    const raw = fs.readFileSync(INSTALL_CONFIG_PATH, "utf-8");
+    const config = JSON.parse(raw);
+    return config.secrets?.[key];
+  } catch {
+    return undefined;
+  }
+}
+
+export function getJwtSecret(): string {
+  const secret = env.JWT_SECRET || getRuntimeSecret("jwtSecret");
+
+  if (!secret) {
+    throw new AppError("JWT_SECRET가 설정되지 않았습니다. 설치가 필요하거나 환경 변수를 확인해 주세요.", 500);
+  }
+
+  return secret;
+}
 
 export const appRoleSchema = z.enum(["user", "manager", "admin"]);
 
@@ -136,12 +162,12 @@ export const generateTemporaryPassword = () =>
     .slice(0, 14);
 
 export const signToken = (payload: { sub: string; username: string; role: AppRole }) =>
-  jwt.sign(payload, env.JWT_SECRET, {
+  jwt.sign(payload, getJwtSecret(), {
     expiresIn: "7d"
   });
 
 export const verifyToken = (token: string) =>
-  jwt.verify(token, env.JWT_SECRET) as {
+  jwt.verify(token, getJwtSecret()) as {
     sub: string;
     username: string;
     role: AppRole;

@@ -1,6 +1,7 @@
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -28,13 +29,16 @@ app.get("/health", (_request, response) => {
 app.use("/api/install", installRouter);
 app.use("/api", ensureInstallationComplete, apiRouter);
 
-if (env.NODE_ENV === "production") {
-  const currentFile = fileURLToPath(import.meta.url);
-  const currentDir = path.dirname(currentFile);
-  const webDistDir = path.resolve(currentDir, "../web");
+const currentFile = fileURLToPath(import.meta.url);
+const currentDir = path.dirname(currentFile);
+const webDistDir = path.resolve(currentDir, "../web");
 
+if (fs.existsSync(webDistDir)) {
   app.use(express.static(webDistDir));
-  app.get("*", (_request, response) => {
+  app.get("*", (request, response, next) => {
+    if (request.path.startsWith("/api")) {
+      return next();
+    }
     response.sendFile(path.join(webDistDir, "index.html"));
   });
 }

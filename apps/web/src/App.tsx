@@ -143,116 +143,13 @@ function LoginPage() {
   );
 }
 
-function InstallDatabasePage({ onConfigured }: { onConfigured?: () => void }) {
-  const { t } = useI18n();
-  const configureDatabase = useInstallStore((state) => state.configureDatabase);
-  const [provider, setProvider] = useState<"sqlite" | "mysql">("sqlite");
-  const [address, setAddress] = useState("127.0.0.1:3306");
-  const [database, setDatabase] = useState("quick_trigger");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    if (isSubmitting) {
-      return;
-    }
-
-    setIsSubmitting(true);
-    setError("");
-
-    try {
-      if (provider === "sqlite") {
-        await configureDatabase({
-          provider: "sqlite"
-        });
-      } else {
-        await configureDatabase({
-          provider: "mysql",
-          address,
-          database,
-          username,
-          password
-        });
-      }
-      onConfigured?.();
-    } catch (installError) {
-      setError(installError instanceof Error ? installError.message : t("install.database.error"));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <AuthCard
-      title={t("install.database.title")}
-      description={t("install.database.description")}
-    >
-      <form className="space-y-4" onSubmit={handleSubmit}>
-        <label className="block space-y-2">
-          <span className="text-sm font-semibold text-slate-700">{t("install.database.provider")}</span>
-          <SelectInput
-            autoFocus
-            value={provider}
-            onChange={(event) => setProvider(event.target.value as "sqlite" | "mysql")}
-          >
-            <option value="sqlite">{t("install.database.provider.sqlite")}</option>
-            <option value="mysql">{t("install.database.provider.mysql")}</option>
-          </SelectInput>
-        </label>
-        {provider === "mysql" ? (
-          <>
-            <label className="block space-y-2">
-              <span className="text-sm font-semibold text-slate-700">{t("install.database.address")}</span>
-              <TextInput
-                placeholder="127.0.0.1:3306"
-                value={address}
-                onChange={(event) => setAddress(event.target.value)}
-              />
-            </label>
-            <label className="block space-y-2">
-              <span className="text-sm font-semibold text-slate-700">{t("install.database.name")}</span>
-              <TextInput value={database} onChange={(event) => setDatabase(event.target.value)} />
-            </label>
-            <label className="block space-y-2">
-              <span className="text-sm font-semibold text-slate-700">{t("install.database.username")}</span>
-              <TextInput value={username} onChange={(event) => setUsername(event.target.value)} />
-            </label>
-            <label className="block space-y-2">
-              <span className="text-sm font-semibold text-slate-700">{t("install.database.password")}</span>
-              <TextInput
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-              />
-            </label>
-          </>
-        ) : (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            {t("install.database.sqliteHint")}
-          </div>
-        )}
-        {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-        <Button className="w-full" disabled={isSubmitting} type="submit">
-          {t("install.database.submit")}
-        </Button>
-      </form>
-    </AuthCard>
-  );
-}
-
 function InstallBootstrapPage({
-  installStatus,
-  onBack
+  installStatus
 }: {
   installStatus: InstallStatus;
-  onBack: () => void;
 }) {
   const navigate = useNavigate();
-  const { language, t } = useI18n();
+  const { language, setLanguage, languageOptions, t } = useI18n();
   const completeInstallation = useInstallStore((state) => state.completeInstallation);
   const setSession = useSessionStore((state) => state.setSession);
   const loadDashboard = useDashboardStore((state) => state.loadDashboard);
@@ -297,22 +194,31 @@ function InstallBootstrapPage({
   return (
     <AuthCard
       title={t("install.bootstrap.title")}
-      description={
-        installStatus.provider === "sqlite"
-          ? t("install.bootstrap.sqliteReady", {
-              filePath: installStatus.database?.filePath ?? ".runtime/quick-trigger.sqlite"
-            })
-          : t("install.bootstrap.mysqlReady", {
-              address: installStatus.database?.address ?? "",
-              database: installStatus.database?.database ?? ""
-            })
-      }
+      description={t("install.bootstrap.setupReady")}
     >
       <form className="space-y-4" onSubmit={handleSubmit}>
         <label className="block space-y-2">
+          <span className="text-sm font-semibold text-slate-700">{t("admin.language")}</span>
+          <SelectInput
+            autoFocus
+            value={language}
+            onChange={(event) => setLanguage(event.target.value)}
+          >
+            {languageOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.flag} {option.label}
+              </option>
+            ))}
+          </SelectInput>
+        </label>
+        <label className="block space-y-2">
+          <span className="text-sm font-semibold text-slate-700">{t("install.bootstrap.dashboardTitle")}</span>
+          <TextInput value={dashboardTitle} onChange={(event) => setDashboardTitle(event.target.value)} />
+        </label>
+        <div className="h-px bg-slate-200 my-2" />
+        <label className="block space-y-2">
           <span className="text-sm font-semibold text-slate-700">{t("install.bootstrap.adminId")}</span>
           <TextInput
-            autoFocus
             autoComplete="username"
             value={username}
             onChange={(event) => setUsername(event.target.value)}
@@ -336,39 +242,17 @@ function InstallBootstrapPage({
             onChange={(event) => setConfirmPassword(event.target.value)}
           />
         </label>
-        <label className="block space-y-2">
-          <span className="text-sm font-semibold text-slate-700">{t("install.bootstrap.dashboardTitle")}</span>
-          <TextInput value={dashboardTitle} onChange={(event) => setDashboardTitle(event.target.value)} />
-        </label>
         {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-        <div className="flex gap-3">
-          <Button className="flex-1" onClick={onBack} type="button" variant="ghost">
-            {t("action.backToDatabaseSetup")}
-          </Button>
-          <Button className="flex-1" disabled={isSubmitting} type="submit">
-            {t("action.finishInstallation")}
-          </Button>
-        </div>
+        <Button className="w-full" disabled={isSubmitting} type="submit">
+          {t("install.bootstrap.submit")}
+        </Button>
       </form>
     </AuthCard>
   );
 }
 
 function InstallPage({ installStatus }: { installStatus: InstallStatus }) {
-  const [manualStep, setManualStep] = useState<"database" | null>(null);
-  const currentStep = manualStep ?? (installStatus.step === "database" ? "database" : "admin");
-
-  useEffect(() => {
-    if (installStatus.step === "database") {
-      setManualStep(null);
-    }
-  }, [installStatus.step]);
-
-  if (currentStep === "database") {
-    return <InstallDatabasePage onConfigured={() => setManualStep(null)} />;
-  }
-
-  return <InstallBootstrapPage installStatus={installStatus} onBack={() => setManualStep("database")} />;
+  return <InstallBootstrapPage installStatus={installStatus} />;
 }
 
 function DashboardPage({ user }: { user: User }) {
@@ -799,7 +683,7 @@ export default function App() {
     return (
       <>
         <Routes>
-          <Route element={<InstallPage installStatus={installState ?? { databaseConfigured: false, setupComplete: false, step: "database" }} />} path="*" />
+          <Route element={<InstallPage installStatus={installState ?? { setupComplete: false, step: "admin" }} />} path="*" />
         </Routes>
         <ToastViewport />
       </>
